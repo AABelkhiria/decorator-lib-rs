@@ -1,10 +1,12 @@
-use decorator::{on_ok, on_result, retry, timeout};
+use decorator::{hook, on_ok, on_result, retry, timeout};
 use std::cell::RefCell;
 
 thread_local! {
     static OK_CALLED: RefCell<bool> = RefCell::new(false);
     static ERR_CALLED: RefCell<bool> = RefCell::new(false);
     static RETRY_COUNT: RefCell<u32> = RefCell::new(0);
+    static PRE_HOOK_CALLED: RefCell<bool> = RefCell::new(false);
+    static POST_HOOK_CALLED: RefCell<bool> = RefCell::new(false);
 }
 
 fn on_ok_callback() {
@@ -15,10 +17,20 @@ fn on_err_callback() {
     ERR_CALLED.with(|c| *c.borrow_mut() = true);
 }
 
+fn pre_hook_callback() {
+    PRE_HOOK_CALLED.with(|c| *c.borrow_mut() = true);
+}
+
+fn post_hook_callback() {
+    POST_HOOK_CALLED.with(|c| *c.borrow_mut() = true);
+}
+
 fn reset_callbacks() {
     OK_CALLED.with(|c| *c.borrow_mut() = false);
     ERR_CALLED.with(|c| *c.borrow_mut() = false);
     RETRY_COUNT.with(|c| *c.borrow_mut() = 0);
+    PRE_HOOK_CALLED.with(|c| *c.borrow_mut() = false);
+    POST_HOOK_CALLED.with(|c| *c.borrow_mut() = false);
 }
 
 #[test]
@@ -180,3 +192,50 @@ fn test_timeout_decorator_timeout() {
     assert_eq!(result.unwrap_err(), "Function timed out after 10ms");
 }
 
+#[test]
+fn test_hook_decorator() {
+    reset_callbacks();
+
+    #[hook(on_pre = "pre_hook_callback", on_post = "post_hook_callback")]
+    fn function_with_hooks() -> Result<(), ()> {
+        assert!(PRE_HOOK_CALLED.with(|c| *c.borrow()));
+        assert!(!POST_HOOK_CALLED.with(|c| *c.borrow()));
+        Ok(())
+    }
+
+    let _ = function_with_hooks();
+    assert!(PRE_HOOK_CALLED.with(|c| *c.borrow()));
+    assert!(POST_HOOK_CALLED.with(|c| *c.borrow()));
+}
+
+#[test]
+fn test_hook_decorator_only_pre() {
+    reset_callbacks();
+
+    #[hook(on_pre = "pre_hook_callback")]
+    fn function_with_only_pre_hook() -> Result<(), ()> {
+        assert!(PRE_HOOK_CALLED.with(|c| *c.borrow()));
+        assert!(!POST_HOOK_CALLED.with(|c| *c.borrow()));
+        Ok(())
+    }
+
+    let _ = function_with_only_pre_hook();
+    assert!(PRE_HOOK_CALLED.with(|c| *c.borrow()));
+    assert!(!POST_HOOK_CALLED.with(|c| *c.borrow()));
+}
+
+#[test]
+fn test_hook_decorator_only_post() {
+    reset_callbacks();
+
+    #[hook(on_post = "post_hook_callback")]
+    fn function_with_only_post_hook() -> Result<(), ()> {
+        assert!(!PRE_HOOK_CALLED.with(|c| *c.borrow()));
+        assert!(!POST_HOOK_CALLED.with(|c| *c.borrow()));
+        Ok(())
+    }
+
+    let _ = function_with_only_post_hook();
+    assert!(!PRE_HOOK_CALLED.with(|c| *c.borrow()));
+    assert!(POST_HOOK_CALLED.with(|c| *c.borrow()));
+}

@@ -191,3 +191,57 @@ pub fn timeout(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     gen.into()
 }
+
+#[proc_macro_attribute]
+pub fn hook(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
+    let input_fn = parse_macro_input!(item as ItemFn);
+
+    let mut on_pre_fn: Option<ExprPath> = None;
+    let mut on_post_fn: Option<ExprPath> = None;
+
+    for arg in args {
+        if let Meta::NameValue(MetaNameValue {
+            path,
+            value: Expr::Lit(ExprLit {
+                lit: Lit::Str(lit_str), ..
+            }),
+            ..
+        }) = arg
+        {
+            let ident = path.get_ident().map(|i| i.to_string());
+            match ident.as_deref() {
+                Some("on_pre") => on_pre_fn = Some(lit_str.parse().unwrap()),
+                Some("on_post") => on_post_fn = Some(lit_str.parse().unwrap()),
+                _ => {}
+            }
+        }
+    }
+
+    let vis = &input_fn.vis;
+    let sig = &input_fn.sig;
+    let block = &input_fn.block;
+
+    let pre_hook_code = if let Some(f) = on_pre_fn {
+        quote! { #f(); }
+    } else {
+        quote! {}
+    };
+
+    let post_hook_code = if let Some(f) = on_post_fn {
+        quote! { #f(); }
+    } else {
+        quote! {}
+    };
+
+    let gen = quote! {
+        #vis #sig {
+            #pre_hook_code
+            let result = (|| #block)();
+            #post_hook_code
+            result
+        }
+    };
+
+    gen.into()
+}
