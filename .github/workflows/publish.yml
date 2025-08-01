@@ -1,0 +1,45 @@
+name: Publish Crate
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v3
+        with:
+          ref: main
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Package the crate
+        run: cargo package
+
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v3
+        with:
+          ref: gh-pages
+          path: gh-pages
+
+      - name: Move the crate
+        run: |
+          crate_file=$(find target/package -name "*.crate")
+          mv $crate_file gh-pages/crates/
+
+      - name: Update registry index
+        run: |
+          cd gh-pages
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add .
+          git commit -m "Publish crate"
+          git push
