@@ -37,6 +37,22 @@ decorator = "25.7.0"
 decorator = { git = "https://github.com/AABelkhiria/decorator-lib-rs.git", branch = "main" }
 ```
 
+## Registry
+
+This repository also serves as a crate registry. To use it, add the following to your `.cargo/config.toml`:
+
+```toml
+[registries]
+decorator-lib-rs = { index = "https://github.com/AABelkhiria/decorator-lib-rs.git" }
+```
+
+Then, you can add the crate to your `Cargo.toml` like this:
+
+```toml
+[dependencies]
+decorator-lib-rs = { version = "0.1.0", registry = "decorator-lib-rs" }
+```
+
 Example:
 
 ```rust
