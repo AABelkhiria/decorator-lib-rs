@@ -1,9 +1,9 @@
-name: Publish Crate
+name: Publish to Custom Crate Registry
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'v*' # Trigger on tags like v0.1.0
 
 jobs:
   publish:
@@ -15,31 +15,46 @@ jobs:
         with:
           ref: main
 
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Package the crate
         run: cargo package
 
-      - name: Checkout gh-pages branch
-        uses: actions/checkout@v3
-        with:
-          ref: gh-pages
-          path: gh-pages
-
-      - name: Move the crate
+      - name: Generate checksum
+        id: checksum
         run: |
-          crate_file=$(find target/package -name "*.crate")
-          mv $crate_file gh-pages/crates/
+          CRATE_NAME=$(cat Cargo.toml | grep '^name =' | awk -F '"' '{print $2}')
+          CRATE_VERSION=$(cat Cargo.toml | grep '^version =' | awk -F '"' '{print $2}')
+          CRATE_FILE="target/package/$CRATE_NAME-$CRATE_VERSION.crate"
+          CHECKSUM=$(sha256sum $CRATE_FILE | awk '{print $1}')
+          echo "checksum_val=$CHECKSUM" >> $GITHUB_OUTPUT
+          echo "crate_name=$CRATE_NAME" >> $GITHUB_OUTPUT
+          echo "crate_version=$CRATE_VERSION" >> $GITHUB_OUTPUT
+          echo "crate_file=$CRATE_FILE" >> $GITHUB_OUTPUT
 
-      - name: Update registry index
+      - name: Update crate registry
+        env:
+          REGISTRY_ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cd gh-pages
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          git clone https://x-access-token:${REGISTRY_ACCESS_TOKEN}@github.com/<YOUR_USERNAME>/my-crate-registry.git
+          cd my-crate-registry
+
+          INDEX_FILE="index/${{ steps.checksum.outputs.crate_name }}"
+          
+          # Create a basic deps array. A more robust solution might parse Cargo.toml
+          DEPS="[]"
+
+          NEW_VERSION_JSON="{\"name\":\"${{ steps.checksum.outputs.crate_name }}\",\"vers\":\"${{ steps.checksum.outputs.crate_version }}\",\"deps\":${DEPS},\"cksum\":\"${{ steps.checksum.outputs.checksum_val }}\",\"features\":{},\"yanked\":false}"
+          
+          echo $NEW_VERSION_JSON >> $INDEX_FILE
+          
+          mkdir -p crates
+          cp ../${{ steps.checksum.outputs.crate_file }} crates/${{ steps.checksum.outputs.crate_name }}-${{ steps.checksum.outputs.crate_version }}.crate
+
           git add .
-          git commit -m "Publish crate"
+          git commit -m "Add ${{ steps.checksum.outputs.crate_name }} version ${{ steps.checksum.outputs.crate_version }}"
           git push
