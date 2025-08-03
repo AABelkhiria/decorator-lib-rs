@@ -8,6 +8,13 @@ on:
 jobs:
   create_release:
     runs-on: ubuntu-latest
+
+    env:
+      CRATE_NAME: "decorator"
+
+    outputs:
+      new_version: ${{ steps.versioning.outputs.new-version }}
+
     permissions:
       contents: write
     
@@ -48,10 +55,63 @@ jobs:
       - name: Create GitHub Release and Upload Crate
         uses: softprops/action-gh-release@v1
         with:
-          # The tag is created from the version in Cargo.toml
           tag_name: ${{ steps.versioning.outputs.new-version }}
-          # The files to upload as assets
           files: "target/package/*.crate"
         env:
-          # The GITHUB_TOKEN is automatically provided by GitHub
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # - name: Debug via SSH
+      #   uses: mxschmitt/action-tmate@v3
+      #   with:
+      #     limit-access-to-actor: true
+      #   timeout-minutes: 60
+
+      - name: Update Registry Index Branch
+        shell: bash
+        run: |
+          # Set up variables
+          CRATE_VERSION="${{ steps.versioning.outputs.new-version }}"
+          CRATE_FILE="${CRATE_NAME}-${CRATE_VERSION}.crate"
+          
+          echo "Updating index for ${CRATE_FILE} (${CRATE_NAME} v${CRATE_VERSION})"
+
+          # 1. Clone the index branch into a separate directory
+          # The GITHUB_TOKEN has permission to clone/push to the same repo
+          git clone --branch=index "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" index_repo
+          cd index_repo
+
+          # 2. Calculate the checksum of the .crate file from the release
+          # The path points back to the original workspace where the crate was built
+          CHECKSUM=$(sha256sum "../target/package/${CRATE_FILE}" | awk '{ print $1 }')
+          echo "Checksum for ${CRATE_FILE}: ${CHECKSUM}"
+
+          # 3. Determine the correct directory structure for the index
+          if [ ${#CRATE_NAME} -le 2 ]; then
+            echo "CRATE_NAME is too short, using the name length as directory"
+            index_dir="${#CRATE_NAME}"
+          elif [ ${#CRATE_NAME} -eq 3 ]; then
+            echo "CRATE_NAME is 3 characters, using first character as directory"
+            index_dir="3/${CRATE_NAME:0:1}"
+          else
+            echo "CRATE_NAME is longer than 3 characters, using first two characters as directory"
+            index_dir="${CRATE_NAME:0:2}/${CRATE_NAME:2:2}"
+          fi
+          
+          mkdir -p "$index_dir"
+          index_file="$index_dir/$CRATE_NAME"
+          echo "Index file path: $index_file"
+
+          # 4. Create the JSON metadata line for the new version
+          jq -n \
+            --arg name "$CRATE_NAME" \
+            --arg vers "$CRATE_VERSION" \
+            --arg cksum "$CHECKSUM" \
+            --argjson deps '[]' \
+            '{name: $name, vers: $vers, deps: $deps, cksum: $cksum, yanked: false}' >> "$index_file"
+
+          # 5. Commit and push the updated index
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Add ${CRATE_NAME} v${CRATE_VERSION}"
+          git push
