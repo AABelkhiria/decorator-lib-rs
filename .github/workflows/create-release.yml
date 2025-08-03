@@ -8,6 +8,10 @@ on:
 jobs:
   create_release:
     runs-on: ubuntu-latest
+
+    outputs:
+      new_version: ${{ steps.versioning.outputs.new-version }}
+
     permissions:
       contents: write
     
@@ -48,10 +52,22 @@ jobs:
       - name: Create GitHub Release and Upload Crate
         uses: softprops/action-gh-release@v1
         with:
-          # The tag is created from the version in Cargo.toml
           tag_name: ${{ steps.versioning.outputs.new-version }}
-          # The files to upload as assets
           files: "target/package/*.crate"
         env:
-          # The GITHUB_TOKEN is automatically provided by GitHub
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload crate as artifact for next job
+        uses: actions/upload-artifact@v4
+        with:
+          name: crate-package
+          path: "target/package/*.crate"
+          retention-days: 1
+
+  update_registry:
+    needs: create_release
+    permissions:
+      contents: write
+    uses: ./.github/workflows/update-registry.yml
+    with:
+      new_version: ${{ needs.create_release.outputs.new_version }}
