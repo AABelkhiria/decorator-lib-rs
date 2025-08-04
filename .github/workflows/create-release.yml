@@ -90,9 +90,9 @@ jobs:
           index_file="$index_dir/$CRATE_NAME"
 
           # 4. Create the JSON metadata line for the new version
-          DEPS_JSON=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].dependencies | map({name: .name, req: .req, features: .features, optional: .optional, default_features: .uses_default_features, target: .target, kind: .kind, registry: .registry})')
+          DEPS_JSON=$(cargo metadata --no-deps --format-version 1 | jq -cr '.packages[0].dependencies | map({name: .name, req: .req, features: .features, optional: .optional, default_features: .uses_default_features, target: .target, kind: .kind, registry: .registry})')
           
-          jq -n \
+          jq -c -n \
             --arg name "$CRATE_NAME" \
             --arg vers "$CRATE_VERSION" \
             --arg cksum "$CHECKSUM" \
