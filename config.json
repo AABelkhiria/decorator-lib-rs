@@ -1,0 +1,4 @@
+{
+  "dl": "https://github.com/AABelkhiria/decorator-lib-rs/releases/download/{version}/{crate}-{version}.crate",
+  "api": "https://github.com/AABelkhiria/decorator-lib-rs"
+}
