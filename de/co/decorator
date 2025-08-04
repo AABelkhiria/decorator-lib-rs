@@ -1,1 +1,31 @@
 {"name": "decorator", "vers": "25.8.11", "deps": [], "cksum": "66c43acd9cd374a7f851c6a433d62ca33c56f80e6d6a9feeb3e296d67f1e630a", "yanked": false}
+{
+  "name": "decorator",
+  "vers": "25.8.12",
+  "deps": [
+    {
+      "name": "quote",
+      "req": "^1.0",
+      "features": [],
+      "optional": false,
+      "default_features": true,
+      "target": null,
+      "kind": null,
+      "registry": null
+    },
+    {
+      "name": "syn",
+      "req": "^2.0",
+      "features": [
+        "full"
+      ],
+      "optional": false,
+      "default_features": true,
+      "target": null,
+      "kind": null,
+      "registry": null
+    }
+  ],
+  "cksum": "badb8ecff4df137b9477dc11a36f6c810d7ab155c279f883459f6457c3135f7e",
+  "yanked": false
+}
