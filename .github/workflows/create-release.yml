@@ -60,12 +60,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # - name: Debug via SSH
-      #   uses: mxschmitt/action-tmate@v3
-      #   with:
-      #     limit-access-to-actor: true
-      #   timeout-minutes: 60
-
       - name: Update Registry Index Branch
         shell: bash
         run: |
@@ -73,7 +67,6 @@ jobs:
           CRATE_VERSION="${{ steps.versioning.outputs.new-version }}"
           CRATE_FILE="${CRATE_NAME}-${CRATE_VERSION}.crate"
           
-          echo "Updating index for ${CRATE_FILE} (${CRATE_NAME} v${CRATE_VERSION})"
 
           # 1. Clone the index branch into a separate directory
           # The GITHUB_TOKEN has permission to clone/push to the same repo
@@ -83,30 +76,27 @@ jobs:
           # 2. Calculate the checksum of the .crate file from the release
           # The path points back to the original workspace where the crate was built
           CHECKSUM=$(sha256sum "../target/package/${CRATE_FILE}" | awk '{ print $1 }')
-          echo "Checksum for ${CRATE_FILE}: ${CHECKSUM}"
 
           # 3. Determine the correct directory structure for the index
           if [ ${#CRATE_NAME} -le 2 ]; then
-            echo "CRATE_NAME is too short, using the name length as directory"
             index_dir="${#CRATE_NAME}"
           elif [ ${#CRATE_NAME} -eq 3 ]; then
-            echo "CRATE_NAME is 3 characters, using first character as directory"
             index_dir="3/${CRATE_NAME:0:1}"
           else
-            echo "CRATE_NAME is longer than 3 characters, using first two characters as directory"
             index_dir="${CRATE_NAME:0:2}/${CRATE_NAME:2:2}"
           fi
           
           mkdir -p "$index_dir"
           index_file="$index_dir/$CRATE_NAME"
-          echo "Index file path: $index_file"
 
           # 4. Create the JSON metadata line for the new version
+          DEPS_JSON=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].dependencies | map({name: .name, req: .req, features: .features, optional: .optional, default_features: .uses_default_features, target: .target, kind: .kind, registry: .registry})')
+          
           jq -n \
             --arg name "$CRATE_NAME" \
             --arg vers "$CRATE_VERSION" \
             --arg cksum "$CHECKSUM" \
-            --argjson deps '[]' \
+            --argjson deps "${DEPS_JSON:-[]}" \
             '{name: $name, vers: $vers, deps: $deps, cksum: $cksum, yanked: false}' >> "$index_file"
 
           # 5. Commit and push the updated index
