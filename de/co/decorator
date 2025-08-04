@@ -1,7 +1,1 @@
-{
-  "name": "decorator",
-  "vers": "25.8.11",
-  "deps": [],
-  "cksum": "66c43acd9cd374a7f851c6a433d62ca33c56f80e6d6a9feeb3e296d67f1e630a",
-  "yanked": false
-}
+{"name": "decorator", "vers": "25.8.11", "deps": [], "cksum": "66c43acd9cd374a7f851c6a433d62ca33c56f80e6d6a9feeb3e296d67f1e630a", "yanked": false}
