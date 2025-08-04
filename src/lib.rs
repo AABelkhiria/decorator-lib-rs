@@ -91,7 +91,7 @@ pub fn retry(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(attr with Punctuated::<Meta, Token![,]>::parse_terminated);
     let input_fn = parse_macro_input!(item as ItemFn);
 
-    let mut times = 0;
+    let mut times = 1;
     let mut delay_ms = 0;
 
     for arg in args {
@@ -105,8 +105,8 @@ pub fn retry(attr: TokenStream, item: TokenStream) -> TokenStream {
         {
             let ident = path.get_ident().map(|i| i.to_string());
             match ident.as_deref() {
-                Some("times") => times = lit_int.base10_parse::<usize>().unwrap(),
-                Some("delay_ms") => delay_ms = lit_int.base10_parse::<u64>().unwrap(),
+                Some("times") => times = lit_int.base10_parse::<usize>().unwrap_or(1),
+                Some("delay_ms") => delay_ms = lit_int.base10_parse::<u64>().unwrap_or(0),
                 _ => {}
             }
         }
@@ -115,28 +115,46 @@ pub fn retry(attr: TokenStream, item: TokenStream) -> TokenStream {
     let vis = &input_fn.vis;
     let sig = &input_fn.sig;
     let block = &input_fn.block;
+    
+    let is_async = input_fn.sig.asyncness.is_some();
 
-    let delay_call = if delay_ms > 0 {
-        quote! {
-            std::thread::sleep(std::time::Duration::from_millis(#delay_ms));
-        }
+    let (call_block, delay_call) = if is_async {
+        let async_call = quote! { (|| async #block)().await };
+        let async_delay = if delay_ms > 0 {
+            quote! { tokio::time::sleep(std::time::Duration::from_millis(#delay_ms)).await; }
+        } else {
+            quote! {}
+        };
+        (async_call, async_delay)
     } else {
-        quote! {}
+        let sync_call = quote! { (|| #block)() };
+        let sync_delay = if delay_ms > 0 {
+            quote! { std::thread::sleep(std::time::Duration::from_millis(#delay_ms)); }
+        } else {
+            quote! {}
+        };
+        (sync_call, sync_delay)
     };
 
     let gen = quote! {
         #vis #sig {
-            let mut result;
-            for i in 0..#times {
-                result = (|| #block)();
+            let mut attempt = 0;
+            loop {
+                attempt += 1;
+                let result = #call_block;
+
                 if result.is_ok() {
                     return result;
                 }
-                if i < #times - 1 {
+                
+                if attempt > #times {
+                    return result;
+                }
+
+                if attempt <= #times {
                     #delay_call
                 }
             }
-            (|| #block)()
         }
     };
 

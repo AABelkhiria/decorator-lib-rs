@@ -239,3 +239,37 @@ fn test_hook_decorator_only_post() {
     assert!(!PRE_HOOK_CALLED.with(|c| *c.borrow()));
     assert!(POST_HOOK_CALLED.with(|c| *c.borrow()));
 }
+
+#[tokio::test]
+async fn test_async_retry_decorator() {
+    reset_callbacks();
+
+    #[retry(times = 3, delay_ms = 10)]
+    async fn async_function_that_fails_twice() -> Result<(), ()> {
+        RETRY_COUNT.with(|c| *c.borrow_mut() += 1);
+        if RETRY_COUNT.with(|c| *c.borrow()) < 3 {
+            Err(())
+        } else {
+            Ok(())
+        }
+    }
+
+    let result = async_function_that_fails_twice().await;
+    assert!(result.is_ok());
+    assert_eq!(RETRY_COUNT.with(|c| *c.borrow()), 3);
+}
+
+#[tokio::test]
+async fn test_async_retry_decorator_that_always_fails() {
+    reset_callbacks();
+
+    #[retry(times = 3, delay_ms = 10)]
+    async fn async_function_that_always_fails() -> Result<(), ()> {
+        RETRY_COUNT.with(|c| *c.borrow_mut() += 1);
+        Err(())
+    }
+
+    let result = async_function_that_always_fails().await;
+    assert!(result.is_err());
+    assert_eq!(RETRY_COUNT.with(|c| *c.borrow()), 4);
+}

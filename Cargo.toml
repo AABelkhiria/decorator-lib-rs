@@ -13,3 +13,6 @@ proc-macro = true
 [dependencies]
 quote = { version = "1", registry = "crates-io" }
 syn = { version = "2", features = ["full"], registry = "crates-io" }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
