@@ -4,7 +4,7 @@ description = "A Rust procedural macro library for creating decorators"
 repository = "https://github.com/AABelkhiria/decorator-lib-rs"
 license = "MIT"
 authors = ["A.Belkhiria <belkhiria.achraf@gmail.com>"]
-version = "25.7.0"
+version = "0.0.1"
 edition = "2021"
 
 [lib]
