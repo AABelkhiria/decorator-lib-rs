@@ -32,7 +32,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-decorator = "25.7.0"
+decorator = "0.0.2"
 ## Or from GitHub
 decorator = { git = "https://github.com/AABelkhiria/decorator-lib-rs.git", branch = "main" }
 ```
@@ -42,15 +42,18 @@ decorator = { git = "https://github.com/AABelkhiria/decorator-lib-rs.git", branc
 This repository also serves as a crate registry. To use it, add the following to your `.cargo/config.toml`:
 
 ```toml
-[registries]
-decorator-lib-rs = { index = "https://github.com/AABelkhiria/decorator-lib-rs.git" }
+[registries.ash-registry]
+index = "https://github.com/AABelkhiria/ash-registry"
+
+[net]
+git-fetch-with-cli = true
 ```
 
 Then, you can add the crate to your `Cargo.toml` like this:
 
 ```toml
 [dependencies]
-decorator-lib-rs = { version = "0.1.0", registry = "decorator-lib-rs" }
+decorator-lib-rs = { version = "0.0.2", registry = "ash-registry" }
 ```
 
 Example:
