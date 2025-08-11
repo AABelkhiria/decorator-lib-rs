@@ -53,4 +53,4 @@ jobs:
         uses: AABelkhiria/ash-registry@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          registry-token: ${{ secrets.GITHUB_TOKEN }}
+          registry-token: ${{ secrets.REGISTRY_TOKEN }}
