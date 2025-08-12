@@ -4,13 +4,26 @@ A Rust procedural macro library providing useful decorators for both synchronous
 
 ## Decorators
 
-All decorators seamlessly handle both `sync` and `async` functions. When used with `async` functions, the decorators will automatically `.await` the decorated function and any specified callbacks.
-
--   **`#[on_ok("callback_fn")]`**: Executes `callback_fn` if the decorated function returns `Ok`.
--   **`#[on_result(on_ok = "callback_ok", on_err = "callback_err")]`**: Executes `callback_ok` on `Ok` or `callback_err` on `Err`.
--   **`#[retry(times = N, delay_ms = M)]`**: Retries the function `N` times on `Err`, with an optional `M` ms delay between retries.
--   **`#[timeout(duration_ms = D)]`**: Returns an `Err` if the function doesn't complete within `D` ms.
--   **`#[hook(on_pre = "pre_hook_fn", on_post = "post_hook_fn")]`**: Executes `on_pre` before the function and `on_post` after it.
+-   Executes `callback_fn` if the decorated function returns `Ok`.
+    ```rust
+    #[on_ok("callback_fn")]
+    ```
+-   Executes `callback_ok` on `Ok` or `callback_err` on `Err`.
+    ```rust
+    #[on_result(on_ok = "callback_ok", on_err = "callback_err")]
+    ```
+-   Retries the function `N` times on `Err`, with an optional `M` ms delay.
+    ```rust
+    #[retry(times = N, delay_ms = M)]
+    ```
+-   Returns an `Err` if the function doesn't complete within `D` ms.
+    ```rust
+    #[timeout(duration_ms = D)]
+    ```
+-   Executes `on_pre` before the function and `on_post` after it.
+    ```rust
+    #[hook(on_pre = "pre_hook_fn", on_post = "post_hook_fn")]
+    ```
 
 ## Usage
 
@@ -18,7 +31,9 @@ Add the dependency to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-decorator = "0.0.1"
+decorator = { version = "0.1.0", registry = "ash-registry" }
+## Or from GitHub
+decorator = { git = "https://github.com/AABelkhiria/decorator-lib-rs.git", branch = "main" }
 ```
 
 ### Enabling Async Support
@@ -27,7 +42,7 @@ To use the decorators with `async` functions, you need to enable the `async` fea
 
 ```toml
 [dependencies]
-decorator = { version = "0.0.1", features = ["async"] }
+decorator = { version = "0.1.0", features = ["async"], registry = "ash-registry" }
 ```
 
 ### Examples
