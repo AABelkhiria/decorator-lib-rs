@@ -1,7 +1,7 @@
 name: Create Release and Crate Asset
 
 on:
-  pull_request:
+  push:
     branches:
       - main
 
@@ -17,12 +17,38 @@ jobs:
 
     permissions:
       contents: write
+      pull-requests: read
     
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Find an associated pull request
+        id: find_pr
+        uses: jwalton/gh-find-current-pr@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get version increment from PR labels
+        id: get_increment
+        run: |
+          INCREMENT='patch'
+          # Convert the JSON array of labels to a simple string for easy searching
+          LABELS=$(echo "${{ steps.find_pr.outputs.labels }}" | tr -d '[]",')
+
+          if [[ $LABELS == *semver:major* ]]; then
+            INCREMENT='major'
+          elif [[ $LABELS == *semver:minor* ]]; then
+            INCREMENT='minor'
+          elif [[ $LABELS == *semver:patch* ]]; then
+            INCREMENT='patch'
+          fi
+
+          echo "Found labels: $LABELS"
+          echo "Determined increment: $INCREMENT"
+          echo "increment_type=$INCREMENT" >> $GITHUB_OUTPUT
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -43,6 +69,7 @@ jobs:
         uses: AABelkhiria/next-version@v1
         with:
           mode: 'git-semver'
+          semver_increment: ${{ steps.get_increment.outputs.increment_type }}
 
       - name: Update version in Cargo.toml
         run: |
