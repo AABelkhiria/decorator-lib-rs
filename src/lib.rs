@@ -23,12 +23,19 @@ pub fn on_ok(attr: TokenStream, item: TokenStream) -> TokenStream {
     let vis = &input_fn.vis;
     let sig = &input_fn.sig;
     let block = &input_fn.block;
+    let is_async = input_fn.sig.asyncness.is_some();
+
+    let (call_block, on_ok_call) = if is_async {
+        (quote! { (|| async #block)().await }, quote! { #on_ok().await })
+    } else {
+        (quote! { (|| #block)() }, quote! { #on_ok() })
+    };
 
     let gen = quote! {
         #vis #sig {
-            let result = (|| #block)();
+            let result = #call_block;
             match &result {
-                Ok(_) => #on_ok(),
+                Ok(_) => #on_ok_call,
                 Err(_) => (),
             }
             result
@@ -65,16 +72,28 @@ pub fn on_result(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     }
 
-    let on_ok_call = on_ok_fn.map(|f| quote!(#f()));
-    let on_err_call = on_err_fn.map(|f| quote!(#f()));
-
     let vis = &input_fn.vis;
     let sig = &input_fn.sig;
     let block = &input_fn.block;
+    let is_async = input_fn.sig.asyncness.is_some();
+
+    let (call_block, on_ok_call, on_err_call) = if is_async {
+        (
+            quote! { (|| async #block)().await },
+            on_ok_fn.map(|f| quote!(#f().await)),
+            on_err_fn.map(|f| quote!(#f().await)),
+        )
+    } else {
+        (
+            quote! { (|| #block)() },
+            on_ok_fn.map(|f| quote!(#f())),
+            on_err_fn.map(|f| quote!(#f())),
+        )
+    };
 
     let gen = quote! {
         #vis #sig {
-            let result = (|| #block)();
+            let result = #call_block;
             match &result {
                 Ok(_) => { #on_ok_call }
                 Err(_) => { #on_err_call }
@@ -188,21 +207,36 @@ pub fn timeout(attr: TokenStream, item: TokenStream) -> TokenStream {
     let vis = &input_fn.vis;
     let sig = &input_fn.sig;
     let block = &input_fn.block;
+    let is_async = input_fn.sig.asyncness.is_some();
 
-    let gen = quote! {
-        #vis #sig {
-            let (sender, receiver) = std::sync::mpsc::channel();
-            let handle = std::thread::spawn(move || {
-                let result = (|| #block)();
-                sender.send(result).unwrap();
-            });
+    let gen = if is_async {
+        quote! {
+            #vis #sig {
+                match tokio::time::timeout(
+                    std::time::Duration::from_millis(#duration_ms),
+                    async #block
+                ).await {
+                    Ok(result) => result,
+                    Err(_) => Err(format!("Function timed out after {}ms", #duration_ms).into()),
+                }
+            }
+        }
+    } else {
+        quote! {
+            #vis #sig {
+                let (sender, receiver) = std::sync::mpsc::channel();
+                let handle = std::thread::spawn(move || {
+                    let result = (|| #block)();
+                    sender.send(result).unwrap();
+                });
 
-            match receiver.recv_timeout(std::time::Duration::from_millis(#duration_ms)) {
-                Ok(result) => result,
-                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                    Err(format!("Function timed out after {}ms", #duration_ms))
-                },
-                Err(e) => Err(format!("Channel error: {}", e)),
+                match receiver.recv_timeout(std::time::Duration::from_millis(#duration_ms)) {
+                    Ok(result) => result,
+                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                        Err(format!("Function timed out after {}ms", #duration_ms).into())
+                    },
+                    Err(e) => Err(format!("Channel error: {}", e).into()),
+                }
             }
         }
     };
@@ -239,23 +273,26 @@ pub fn hook(attr: TokenStream, item: TokenStream) -> TokenStream {
     let vis = &input_fn.vis;
     let sig = &input_fn.sig;
     let block = &input_fn.block;
+    let is_async = input_fn.sig.asyncness.is_some();
 
-    let pre_hook_code = if let Some(f) = on_pre_fn {
-        quote! { #f(); }
+    let (pre_hook_code, post_hook_code, call_block) = if is_async {
+        (
+            on_pre_fn.map(|f| quote! { #f().await; }),
+            on_post_fn.map(|f| quote! { #f().await; }),
+            quote! { (|| async #block)().await }
+        )
     } else {
-        quote! {}
-    };
-
-    let post_hook_code = if let Some(f) = on_post_fn {
-        quote! { #f(); }
-    } else {
-        quote! {}
+        (
+            on_pre_fn.map(|f| quote! { #f(); }),
+            on_post_fn.map(|f| quote! { #f(); }),
+            quote! { (|| #block)() }
+        )
     };
 
     let gen = quote! {
         #vis #sig {
             #pre_hook_code
-            let result = (|| #block)();
+            let result = #call_block;
             #post_hook_code
             result
         }

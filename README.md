@@ -1,62 +1,38 @@
 # decorator-lib-rs
 
-A Rust procedural macro library providing useful decorators for functions that return `Result` types.
+A Rust procedural macro library providing useful decorators for both synchronous and asynchronous functions that return `Result` types.
 
 ## Decorators
 
--   Executes `callback_fn` if the decorated function returns `Ok`.
-    ```rust
-    #[on_ok("callback_fn")]
-    ```
-    
--   Executes `callback_ok` on `Ok` or `callback_err` on `Err`.
-    ```rust
-    #[on_result(on_ok = "callback_ok", on_err = "callback_err")]
-    ```
--   Retries the function `N` times on `Err`, with an optional `M` ms delay.
-    ```rust
-    #[retry(times = N, delay_ms = M)]
-    ```
--   Returns an `Err` if the function doesn't complete within `D` ms.
-    ```rust
-    #[timeout(duration_ms = D)]
-    ```
--   Executes `on_pre` before the function and `on_post` after it.
-    ```rust
-    #[hook(on_pre = "pre_hook_fn", on_post = "post_hook_fn")]
-    ```
+All decorators seamlessly handle both `sync` and `async` functions. When used with `async` functions, the decorators will automatically `.await` the decorated function and any specified callbacks.
+
+-   **`#[on_ok("callback_fn")]`**: Executes `callback_fn` if the decorated function returns `Ok`.
+-   **`#[on_result(on_ok = "callback_ok", on_err = "callback_err")]`**: Executes `callback_ok` on `Ok` or `callback_err` on `Err`.
+-   **`#[retry(times = N, delay_ms = M)]`**: Retries the function `N` times on `Err`, with an optional `M` ms delay between retries.
+-   **`#[timeout(duration_ms = D)]`**: Returns an `Err` if the function doesn't complete within `D` ms.
+-   **`#[hook(on_pre = "pre_hook_fn", on_post = "post_hook_fn")]`**: Executes `on_pre` before the function and `on_post` after it.
 
 ## Usage
 
-Add to your `Cargo.toml`:
+Add the dependency to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-decorator = "0.0.2"
-## Or from GitHub
-decorator = { git = "https://github.com/AABelkhiria/decorator-lib-rs.git", branch = "main" }
+decorator = "0.0.1"
 ```
 
-## Registry
+### Enabling Async Support
 
-This repository also serves as a crate registry. To use it, add the following to your `.cargo/config.toml`:
-
-```toml
-[registries.ash-registry]
-index = "https://github.com/AABelkhiria/ash-registry"
-
-[net]
-git-fetch-with-cli = true
-```
-
-Then, you can add the crate to your `Cargo.toml` like this:
+To use the decorators with `async` functions, you need to enable the `async` feature. This ensures that `tokio` is included as a dependency.
 
 ```toml
 [dependencies]
-decorator-lib-rs = { version = "0.0.2", registry = "ash-registry" }
+decorator = { version = "0.0.1", features = ["async"] }
 ```
 
-Example:
+### Examples
+
+#### Synchronous Example
 
 ```rust
 use decorator::{on_ok, retry};
@@ -76,4 +52,46 @@ fn flaky_operation() -> Result<(), String> {
     // ... might fail
     Err("Failed".to_string())
 }
+```
+
+#### Asynchronous Example
+
+When using decorators with `async` functions, ensure the `async` feature is enabled in your `Cargo.toml`.
+
+```rust
+use decorator::{timeout, hook};
+
+async fn pre_hook() {
+    println!("Before async operation");
+}
+
+async fn post_hook() {
+    println!("After async operation");
+}
+
+#[hook(on_pre = "pre_hook", on_post = "post_hook")]
+#[timeout(duration_ms = 200)]
+async fn async_operation() -> Result<(), String> {
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    Ok(())
+}
+```
+
+## Registry
+
+This repository also serves as a crate registry. To use it, add the following to your `.cargo/config.toml`:
+
+```toml
+[registries.ash-registry]
+index = "https://github.com/AABelkhiria/ash-registry"
+
+[net]
+git-fetch-with-cli = true
+```
+
+Then, you can add the crate to your `Cargo.toml` like this:
+
+```toml
+[dependencies]
+decorator-lib-rs = { version = "0.0.1", registry = "ash-registry" }
 ```
