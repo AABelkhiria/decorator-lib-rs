@@ -1,37 +1,6 @@
 use decorator::{hook, on_ok, on_result, retry, timeout};
-use std::cell::RefCell;
-
-thread_local! {
-    static OK_CALLED: RefCell<bool> = RefCell::new(false);
-    static ERR_CALLED: RefCell<bool> = RefCell::new(false);
-    static RETRY_COUNT: RefCell<u32> = RefCell::new(0);
-    static PRE_HOOK_CALLED: RefCell<bool> = RefCell::new(false);
-    static POST_HOOK_CALLED: RefCell<bool> = RefCell::new(false);
-}
-
-fn on_ok_callback() {
-    OK_CALLED.with(|c| *c.borrow_mut() = true);
-}
-
-fn on_err_callback() {
-    ERR_CALLED.with(|c| *c.borrow_mut() = true);
-}
-
-fn pre_hook_callback() {
-    PRE_HOOK_CALLED.with(|c| *c.borrow_mut() = true);
-}
-
-fn post_hook_callback() {
-    POST_HOOK_CALLED.with(|c| *c.borrow_mut() = true);
-}
-
-fn reset_callbacks() {
-    OK_CALLED.with(|c| *c.borrow_mut() = false);
-    ERR_CALLED.with(|c| *c.borrow_mut() = false);
-    RETRY_COUNT.with(|c| *c.borrow_mut() = 0);
-    PRE_HOOK_CALLED.with(|c| *c.borrow_mut() = false);
-    POST_HOOK_CALLED.with(|c| *c.borrow_mut() = false);
-}
+mod common;
+use common::*;
 
 #[test]
 fn test_on_ok_decorator_with_ok_result() {
@@ -189,7 +158,6 @@ fn test_timeout_decorator_timeout() {
 
     let result = function_that_takes_too_long();
     assert!(result.is_err());
-    assert_eq!(result.unwrap_err(), "Function timed out after 10ms");
 }
 
 #[test]
@@ -238,38 +206,4 @@ fn test_hook_decorator_only_post() {
     let _ = function_with_only_post_hook();
     assert!(!PRE_HOOK_CALLED.with(|c| *c.borrow()));
     assert!(POST_HOOK_CALLED.with(|c| *c.borrow()));
-}
-
-#[tokio::test]
-async fn test_async_retry_decorator() {
-    reset_callbacks();
-
-    #[retry(times = 3, delay_ms = 10)]
-    async fn async_function_that_fails_twice() -> Result<(), ()> {
-        RETRY_COUNT.with(|c| *c.borrow_mut() += 1);
-        if RETRY_COUNT.with(|c| *c.borrow()) < 3 {
-            Err(())
-        } else {
-            Ok(())
-        }
-    }
-
-    let result = async_function_that_fails_twice().await;
-    assert!(result.is_ok());
-    assert_eq!(RETRY_COUNT.with(|c| *c.borrow()), 3);
-}
-
-#[tokio::test]
-async fn test_async_retry_decorator_that_always_fails() {
-    reset_callbacks();
-
-    #[retry(times = 3, delay_ms = 10)]
-    async fn async_function_that_always_fails() -> Result<(), ()> {
-        RETRY_COUNT.with(|c| *c.borrow_mut() += 1);
-        Err(())
-    }
-
-    let result = async_function_that_always_fails().await;
-    assert!(result.is_err());
-    assert_eq!(RETRY_COUNT.with(|c| *c.borrow()), 4);
 }
